@@ -19,11 +19,11 @@ namespace Application.Services
             return _mainRepository.GetUsers();
         }
 
-        public User GetUserById(int id)
+        public User? GetUserById(int id)
         {
             return _mainRepository.GetUserById(id);
         }
-        public User GetUserByEmail(string email)
+        public User? GetUserByEmail(string email)
         {
             return _mainRepository.GetUserByEmail(email);
         }
@@ -40,23 +40,19 @@ namespace Application.Services
 
         public User CreateUserClient(UserDTO user)
         {
-            var userCrear = new User()
-            {
-                Name = user.Name,
-                LastName = user.LastName,
-                Password = user.Password,
-                Email = user.Email,
-                UserName = user.UserName,
-                Adress = user.Adress,
-                UserType = UserType.Client,
-                IsActive = true,
-            };
-            _mainRepository.CreateUser(userCrear);
-            return _mainRepository.GetUserById(userCrear.Id);
+            return CreateUser(user, UserType.Client);
         }
 
         public User CreateUserSeller(UserDTO user)
         {
+            return CreateUser(user, UserType.Seller);
+        }
+
+        private User CreateUser(UserDTO user, UserType userType)
+        {
+            if (string.IsNullOrWhiteSpace(user.Password))
+                throw new ArgumentException("La contraseña es obligatoria.");
+
             var userCrear = new User()
             {
                 Name = user.Name,
@@ -65,34 +61,58 @@ namespace Application.Services
                 Email = user.Email,
                 UserName = user.UserName,
                 Adress = user.Adress,
-                UserType = UserType.Seller,
+                UserType = userType,
                 IsActive = true,
             };
-            _mainRepository.CreateUser(userCrear);
-            return _mainRepository.GetUserById(userCrear.Id);
+            // Atomic: el chequeo de unicidad y el alta no pueden intercalarse con otro alta
+            return _mainRepository.Atomic(() =>
+            {
+                EnsureUnique(user);
+                return _mainRepository.CreateUser(userCrear);
+            });
         }
 
-        public void UpdateUser(int id, UserDTO user)
+        public bool UpdateUser(int id, UserDTO user)
         {
-            var usuario = _mainRepository.GetUserById(id);
-            usuario.Name = user.Name;
-            usuario.LastName = user.LastName;
-            usuario.Password = user.Password;
-            usuario.Email = user.Email;
-            usuario.UserName = user.UserName;
-            usuario.Adress = user.Adress;
-            _mainRepository.UpdateUser(usuario);
+            // Atomic: el chequeo de unicidad y la escritura no pueden intercalarse con otra edición/alta
+            return _mainRepository.Atomic(() =>
+            {
+                var usuario = _mainRepository.GetUserById(id);
+                if (usuario is null) return false;
+                EnsureUnique(user, id); // antes de tocar nada: un 409 no deja la edición a medias
+                usuario.Name = user.Name;
+                usuario.LastName = user.LastName;
+                if (!string.IsNullOrWhiteSpace(user.Password)) usuario.Password = user.Password; // vacía o ausente = conservar
+                usuario.Email = user.Email;
+                usuario.UserName = user.UserName;
+                usuario.Adress = user.Adress;
+                _mainRepository.UpdateUser(usuario);
+                return true;
+            });
         }
 
-        public void DeleteUser(int id)
+        public bool DeleteUser(int id)
         {
             var usuarioDelete = _mainRepository.GetUserById(id);
+            if (usuarioDelete is null) return false;
             _mainRepository.DeleteUser(usuarioDelete);
+            return true;
         }
 
-        public void ActiveUser(int id)
+        public bool ActiveUser(int id)
         {
+            if (_mainRepository.GetUserById(id) is null) return false;
             _mainRepository.ActiveUser(id);
+            return true;
+        }
+
+        // El email (sin distinguir mayúsculas) y el userName no pueden repetirse; exceptId = el usuario que se edita.
+        private void EnsureUnique(UserDTO user, int exceptId = 0)
+        {
+            if (_mainRepository.ValidateUserMail(user.Email, exceptId))
+                throw new InvalidOperationException("El email ya está registrado.");
+            if (_mainRepository.ValidateUserNickName(user.UserName, exceptId))
+                throw new InvalidOperationException("El nombre de usuario ya está en uso.");
         }
 
         public bool ValidateUserCredentials(string userEmail, string userPassword)

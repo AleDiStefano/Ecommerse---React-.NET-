@@ -1,6 +1,160 @@
 @API_TPI_Laboratorio3_HostAddress = http://localhost:5077
 
-GET {{API_TPI_Laboratorio3_HostAddress}}/weatherforecast/
+# Requests reales de la API. Los datos viven en memoria: reiniciar la API vuelve al seed
+# (29 productos, 24 usuarios, 1 pedido). Correr los bloques en orden: el stock baja con los pedidos.
+# Cada bloque dice qué respuesta se espera.
+
+### Productos: listado y detalle
+# Esperado: 200 con 29 productos
+GET {{API_TPI_Laboratorio3_HostAddress}}/api/Product
 Accept: application/json
+
+###
+# Esperado: 200 (producto 1, stock inicial 20)
+GET {{API_TPI_Laboratorio3_HostAddress}}/api/Product/id/1
+Accept: application/json
+
+###
+# Esperado: 404 "Producto no encontrado."
+GET {{API_TPI_Laboratorio3_HostAddress}}/api/Product/id/9999
+Accept: application/json
+
+### Productos: validación
+# Esperado: 400 (el precio debe estar entre 0,01 y 100.000.000; 1e40 o negativos no se guardan)
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/Product
+Content-Type: application/json
+
+{
+  "name": "Producto de prueba",
+  "description": "Precio fuera de rango",
+  "price": -5,
+  "stock": 10,
+  "image": "https://example.com/p.png",
+  "category": "Pruebas",
+  "brand": "Marca"
+}
+
+###
+# Esperado: 200 con el producto creado (id 31 si la API recién arrancó)
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/Product
+Content-Type: application/json
+
+{
+  "name": "Producto de prueba",
+  "description": "Precio con decimales",
+  "price": 19.99,
+  "stock": 10,
+  "image": "https://example.com/p.png",
+  "category": "Pruebas",
+  "brand": "Marca"
+}
+
+###
+# Esperado: 204 sin cuerpo (404 si el id no existe)
+PUT {{API_TPI_Laboratorio3_HostAddress}}/api/Product/baja/31
+
+### Usuarios: alta, unicidad y edición
+# Esperado: 200 con el usuario creado, sin "password" (id 25 si la API recién arrancó)
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/User/customer
+Content-Type: application/json
+
+{
+  "name": "Ana",
+  "lastName": "Prueba",
+  "email": "ana.prueba@mail.com",
+  "userName": "anaprueba",
+  "password": "clave123",
+  "adress": "Calle Falsa 123"
+}
+
+###
+# Esperado: 409 "El email ya está registrado." (no distingue mayúsculas)
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/User/customer
+Content-Type: application/json
+
+{
+  "name": "Otra",
+  "lastName": "Persona",
+  "email": "ANA.PRUEBA@mail.com",
+  "userName": "otrapersona",
+  "password": "clave123",
+  "adress": ""
+}
+
+###
+# Esperado: 400 "La contraseña es obligatoria." (al crear no puede faltar)
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/User/seller
+Content-Type: application/json
+
+{
+  "name": "Sin",
+  "lastName": "Clave",
+  "email": "sin.clave@mail.com",
+  "userName": "sinclave"
+}
+
+###
+# Esperado: 204. Sin "password" (o vacía) se conserva la contraseña actual.
+PUT {{API_TPI_Laboratorio3_HostAddress}}/api/User/25
+Content-Type: application/json
+
+{
+  "name": "Ana",
+  "lastName": "Editada",
+  "email": "ana.prueba@mail.com",
+  "userName": "anaprueba",
+  "adress": "Otra dirección 456"
+}
+
+###
+# Esperado: 200: la contraseña original sigue valiendo después del PUT anterior
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/User/validate
+Content-Type: application/json
+
+{
+  "userEmail": "ana.prueba@mail.com",
+  "userPassword": "clave123"
+}
+
+###
+# Esperado: 200 sin "password" (404 "Usuario no encontrado." si no existe)
+GET {{API_TPI_Laboratorio3_HostAddress}}/api/User/email/ana.prueba@mail.com
+Accept: application/json
+
+### Pedidos: stock
+# Esperado: 200 con el pedido; el stock del producto 1 baja de 20 a 18 y el del 2 de 50 a 49
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/Order
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "productsId": [1, 1, 2]
+}
+
+###
+# Esperado: 400 "Stock insuficiente de ..." (el producto 1 tiene 18 y se piden 19).
+# Todo o nada: tampoco se descuenta el producto 2.
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/Order
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "productsId": [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+}
+
+###
+# Esperado: 204. Deja el producto 3 no disponible para el pedido que sigue.
+PUT {{API_TPI_Laboratorio3_HostAddress}}/api/Product/baja/3
+
+###
+# Esperado: 400 "Banco de Pesas Ajustable" no está disponible.
+# Con un usuario o un producto inexistente: 400 "El usuario no existe." / "El producto N no existe."
+POST {{API_TPI_Laboratorio3_HostAddress}}/api/Order
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "productsId": [3]
+}
 
 ###

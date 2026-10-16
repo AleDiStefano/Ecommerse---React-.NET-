@@ -12,12 +12,13 @@ namespace Application.Interfaces
     {
         public List<Product> GetProducts();
         public List<Product> GetProductsDisponible();
-        public Product GetProductById(int id);
-        public Product GetProductByName(string name);
+        public Product? GetProductById(int id);
+        public Product? GetProductByName(string name);
         public Product CreateProduct(ProductDto product);
-        public void UpdateProduct(int id, ProductDto product);
-        public void DeleteProduct(int id);
-        public void UpdateProductDisponibleBaja(int id);
-        public void UpdateProductDisponibleAlta(int id);
+        // Update/Delete/Baja/Alta devuelven false si el id no existe
+        public bool UpdateProduct(int id, ProductDto product);
+        public bool DeleteProduct(int id);
+        public bool UpdateProductDisponibleBaja(int id);
+        public bool UpdateProductDisponibleAlta(int id);
     }
 }

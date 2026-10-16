@@ -27,11 +27,11 @@ namespace Application.Services
             return _mainRepository.GetProductsDisponible();
         }
 
-        public Product GetProductById(int id)
+        public Product? GetProductById(int id)
         {
             return _mainRepository.GetProductById(id);
         }
-        public Product GetProductByName(string name)
+        public Product? GetProductByName(string name)
         {
             return _mainRepository.GetProductByName(name);
         }
@@ -42,48 +42,59 @@ namespace Application.Services
             {
                 Name = product.Name,
                 Description = product.Description,
-                Price = product.Price,
+                Price = (float)product.Price,
                 Stock = product.Stock,
                 Image = product.Image,
                 Category = product.Category,
                 Brand = product.Brand,
                 Avaible = true
             };
-            _mainRepository.CreateProduct(productCreate);
-            return _mainRepository.GetProductById(productCreate.Id);
+            return _mainRepository.CreateProduct(productCreate);
         }
 
-        public void UpdateProduct(int id, ProductDto product)
+        // Atomic: Stock se pisa acá y se descuenta en OrderService; sin el lock se podría perder una de las dos escrituras
+        public bool UpdateProduct(int id, ProductDto product)
         {
-            var productUpdate = _mainRepository.GetProductById(id);
-            productUpdate.Name = product.Name;
-            productUpdate.Description = product.Description;
-            productUpdate.Stock = product.Stock;
-            productUpdate.Price = product.Price;
-            productUpdate.Image = product.Image;
-            productUpdate.Category = product.Category;
-            productUpdate.Brand = product.Brand;
-            _mainRepository.UpdateProduct(productUpdate);
+            return _mainRepository.Atomic(() =>
+            {
+                var productUpdate = _mainRepository.GetProductById(id);
+                if (productUpdate is null) return false;
+                productUpdate.Name = product.Name;
+                productUpdate.Description = product.Description;
+                productUpdate.Stock = product.Stock;
+                productUpdate.Price = (float)product.Price;
+                productUpdate.Image = product.Image;
+                productUpdate.Category = product.Category;
+                productUpdate.Brand = product.Brand;
+                _mainRepository.UpdateProduct(productUpdate);
+                return true;
+            });
         }
 
-        public void UpdateProductDisponibleBaja(int id)
+        public bool UpdateProductDisponibleBaja(int id)
         {
             var productUpdate = _mainRepository.GetProductById(id);
+            if (productUpdate is null) return false;
             productUpdate.Avaible = false;
             _mainRepository.UpdateProduct(productUpdate);
+            return true;
         }
 
-        public void UpdateProductDisponibleAlta(int id)
+        public bool UpdateProductDisponibleAlta(int id)
         {
             var productUpdate = _mainRepository.GetProductById(id);
+            if (productUpdate is null) return false;
             productUpdate.Avaible = true;
             _mainRepository.UpdateProduct(productUpdate);
+            return true;
         }
 
-        public void DeleteProduct(int id)
+        public bool DeleteProduct(int id)
         {
             var productDelete = _mainRepository.GetProductById(id);
+            if (productDelete is null) return false;
             _mainRepository.DeleteProduct(productDelete);
+            return true;
         }
     }
 }

@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Domain.Enums;
 
@@ -14,6 +15,7 @@ namespace Domain.Entities
         public int Id { get; set; }
         public string Name { get; set; }
         public string LastName { get; set; }
+        [JsonIgnore] // B6: la contraseña nunca sale en una respuesta (User, Order.User, listas)
         public string Password { get; set; }
         public string Email { get; set; }
         public string UserName { get; set; }

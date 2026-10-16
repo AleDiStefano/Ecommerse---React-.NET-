@@ -11,7 +11,8 @@ namespace Application.Interfaces
     public interface IOrderService
     {
         List<Order> GetOrders();
+        // InvalidOperationException (mensaje en español) si el usuario o un producto no existe, no está disponible o no alcanza el stock
         Order CreateOrder(OrderDto order);
-        public Order GetOrderById(int id);
+        public Order? GetOrderById(int id);
     }
 }

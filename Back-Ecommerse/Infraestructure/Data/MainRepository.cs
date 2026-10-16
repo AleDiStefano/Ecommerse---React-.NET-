@@ -2,7 +2,6 @@
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Interfaces;
-using OpenQA.Selenium;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,9 +28,8 @@ namespace Infraestructure.Data
             new Product { Id = 10, Name = "Set de Bandas de Resistencia FitSimplify", Price = 20, Description = "Set de bandas de resistencia de diferentes niveles para ejercicios de fuerza.", Stock = 120, Image = "https://http2.mlstatic.com/D_NQ_NP_984976-MLU71707185036_092023-O.webp", Category = "Accesorios", Brand = "FitSimplify", Avaible = true },
             new Product { Id = 11, Name = "Reloj Deportivo Garmin Forerunner 35", Price = 200, Description = "Reloj deportivo con GPS y monitor de frecuencia cardíaca.", Stock = 50, Image = "https://http2.mlstatic.com/D_NQ_NP_951762-MLA51967035521_102022-O.webp", Category = "Tecnología", Brand = "Garmin", Avaible = true },
             new Product { Id = 12, Name = "Barra de Dominadas Iron Gym", Price = 40, Description = "Barra de dominadas ajustable para puertas sin necesidad de perforaciones.", Stock = 60, Image = "https://http2.mlstatic.com/D_NQ_NP_749330-MLA31076986732_062019-O.webp", Category = "Pesas", Brand = "Iron Gym", Avaible = true },
-            new Product { Id = 13, Name = "Rueda de Abdominales Perfect Fitness", Price = 25, Description = "Rueda para ejercicios de abdominales con agarres ergonómicos.", Stock = 80, Image = "https://http2.mlstatic.com/D_NQ_NP_950695-MLA75435735159_032024-O.webp", Category = "Core", Brand = "Perfect Fitness", Avaible = true },
             new Product { Id = 14, Name = "Bicicleta Estática Schwinn IC4", Price = 800, Description = "Bicicleta estática de alta resistencia con conectividad Bluetooth.", Stock = 20, Image = "https://http2.mlstatic.com/D_NQ_NP_813344-MLU72651628993_112023-O.webp", Category = "Cardio", Brand = "Schwinn", Avaible = true },
-            new Product { Id = 15, Name = "Guantes de Entrenamiento DRB", Price = 25, Description = "Guantes de entrenamiento con acolchado y ventilación.", Stock = 100, Image = "https://http2.mlstatic.com/D_NQ_NP_930982-MLA76086538479_042024-O.webpg", Category = "Accesorios", Brand = "Nike", Avaible = true },
+            new Product { Id = 15, Name = "Guantes de Entrenamiento DRB", Price = 25, Description = "Guantes de entrenamiento con acolchado y ventilación.", Stock = 100, Image = "https://http2.mlstatic.com/D_NQ_NP_930982-MLA76086538479_042024-O.webp", Category = "Accesorios", Brand = "Nike", Avaible = true },
             new Product { Id = 16, Name = "Balón Medicinal 8kg", Price = 40, Description = "Balón medicinal de 8 kg para entrenamiento funcional.", Stock = 50, Image = "https://http2.mlstatic.com/D_NQ_NP_816906-MLU75550631924_042024-O.webp", Category = "Pesas", Brand = "GymMaster", Avaible = true },
             new Product { Id = 17, Name = "Colchoneta de Ejercicios ProsourceFit", Price = 30, Description = "Colchoneta de ejercicios de 1.5 cm de grosor para mayor confort.", Stock = 70, Image = "https://http2.mlstatic.com/D_NQ_NP_735527-MLU75545292112_042024-O.webp", Category = "Accesorios", Brand = "ProsourceFit", Avaible = true },
             new Product { Id = 18, Name = "Soga de Batalla 12m", Price = 100, Description = "Soga de batalla de 12 metros para entrenamiento de alta intensidad.", Stock = 30, Image = "https://http2.mlstatic.com/D_NQ_NP_647009-MLA53225875152_012023-O.webp", Category = "Pesas", Brand = "GymMaster", Avaible = true },
@@ -71,7 +69,7 @@ namespace Infraestructure.Data
             new User {Id = 14, Name = "Sofia", LastName = "Diaz", Password = "sd10", Email = "sofia.diaz@mail.com", UserName = "SofiaDiaz", Adress = "Plaza del Sol 707", Orders = new List<Order>(), Products = new List<Product>(), UserType = UserType.Client, IsActive = true},
             // Vendedores
             new User {Id = 15, Name = "Lucia", LastName = "Perez", Password = "AnaP123", Email = "ana.perez@mail.com", UserName = "AnaPerez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
-            new User {Id = 16, Name = "Carla", LastName = "Lopez", Password = "CarlosL321", Email = "carlos.lopez@mail.com", UserName = "CarlosLopez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
+            new User {Id = 16, Name = "Carla", LastName = "Lopez", Password = "CarlosL321", Email = "carla.lopez@mail.com", UserName = "CarlaLopez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
             new User {Id = 17, Name = "Micaela", LastName = "Gomez", Password = "MariaG456", Email = "maria.gomez@mail.com", UserName = "MariaGomez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
             new User {Id = 18, Name = "Jose", LastName = "Fernandez", Password = "JorgeF654", Email = "jorge.fernandez@mail.com", UserName = "JorgeFernandez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
             new User {Id = 19, Name = "Jose", LastName = "Martinez", Password = "LuciaM789", Email = "lucia.martinez@mail.com", UserName = "LuciaMartinez", Adress = "", Orders = null, Products = null, UserType = UserType.Seller, IsActive = true},
@@ -93,140 +91,164 @@ namespace Infraestructure.Data
 
 
 
+        // BUG-19: List<T> y ++LastIdAssigned* no son thread-safe y Kestrel atiende requests en paralelo.
+        // Un solo lock: toda escritura y toda lectura que enumera pasan por acá.
+        // shortcut: lock global (alcanza para una demo en memoria); con una DB lo reemplaza la transacción.
+        static readonly object Sync = new();
+
+        public T Atomic<T>(Func<T> operation)
+        {
+            lock (Sync) return operation(); // Monitor es reentrante: operation puede llamar al resto de los métodos
+        }
+
         #region ORDERS
         public List<Order> GetOrders()
         {
-            return orders.ToList();
+            lock (Sync) return orders.ToList();
         }
 
 
         public Order CreateOrder(Order order)
         {
-            order.Id = ++LastIdAssignedOrder;
-            orders.Add(order);
-            return order;
+            lock (Sync)
+            {
+                order.Id = ++LastIdAssignedOrder;
+                orders.Add(order);
+                return order;
+            }
         }
 
-        public Order GetOrderById(int id)
+        public Order? GetOrderById(int id)
         {
-            return orders.FirstOrDefault(x => x.Id == id);
+            lock (Sync) return orders.FirstOrDefault(x => x.Id == id);
         }
         #endregion
 
         #region PRODUCTS
         public List<Product> GetProducts()
         {
-            return products.ToList();
+            lock (Sync) return products.ToList();
         }
 
         public List<Product> GetProductsDisponible()
         {
-            return products.Where(p => p.Avaible == true).ToList();
+            lock (Sync) return products.Where(p => p.Avaible == true).ToList();
         }
 
-        public Product GetProductById(int id)
+        public Product? GetProductById(int id)
         {
-            return products.FirstOrDefault(x => x.Id == id);
+            lock (Sync) return products.FirstOrDefault(x => x.Id == id);
         }
 
-        public Product GetProductByName(string name)
+        public Product? GetProductByName(string name)
         {
-            return products.FirstOrDefault(x => x.Name == name);
+            lock (Sync) return products.FirstOrDefault(x => x.Name == name);
         }
 
         public Product CreateProduct(Product product)
         {
-            product.Id = ++LastIdAssignedProduct;
-            products.Add(product);
-            return product;
+            lock (Sync)
+            {
+                product.Id = ++LastIdAssignedProduct;
+                products.Add(product);
+                return product;
+            }
         }
 
         public void UpdateProduct(Product product)
         {
-            var obj = products.FirstOrDefault(x => x.Id == product.Id);
-            obj.Name = product.Name;
-        }
-
-        public void UpdateProductDisponible(Product product)
-        {
-            var obj = products.FirstOrDefault(x => x.Id == product.Id);
-            obj.Avaible = product.Avaible;
+            lock (Sync)
+            {
+                var obj = products.FirstOrDefault(x => x.Id == product.Id);
+                if (obj is null) return; // borrado en paralelo: no hay nada que actualizar
+                obj.Name = product.Name;
+            }
         }
 
         public void DeleteProduct(Product product)
         {
-            products.Remove(product);
+            lock (Sync) products.Remove(product);
         }
         #endregion
 
         #region USER
         public List<User> GetUsers()
         {
-            return users.ToList();
+            lock (Sync) return users.ToList();
         }
 
-        public User GetUserById(int id)
+        public User? GetUserById(int id)
         {
-            return users.FirstOrDefault(x => x.Id == id);
+            lock (Sync) return users.FirstOrDefault(x => x.Id == id);
         }
-        public User GetUserByEmail(string email)
+        public User? GetUserByEmail(string email)
         {
-            return users.FirstOrDefault(x => x.Email == email);
+            lock (Sync) return users.FirstOrDefault(x => string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase));
         }
 
         public List<User> GetUsersByName(string name)
         {
-            return users.Where(x => x.Name == name).ToList();
+            lock (Sync) return users.Where(x => x.Name == name).ToList();
         }
 
         public List<User> GetUserByType(UserType type)
         {
-            List<User> filteredUsers = users.Where(x => x.UserType == type).ToList();
-            return filteredUsers;
+            lock (Sync) return users.Where(x => x.UserType == type).ToList();
         }
 
         public User CreateUser(User user)
         {
-            user.Id = ++LastIdAssignedUser;
-            users.Add(user);
-            return user;
+            lock (Sync)
+            {
+                user.Id = ++LastIdAssignedUser;
+                users.Add(user);
+                return user;
+            }
         }
 
         public void UpdateUser(User user)
         {
-            var obj = users.FirstOrDefault(x => x.Id == user.Id);
-            obj.Name = user.Name;
-            obj.LastName = user.LastName;
-            obj.Password = user.Password;
-            obj.Email = user.Email;
-            obj.UserName = user.UserName;
-            obj.Adress = user.Adress;
+            lock (Sync)
+            {
+                var obj = users.FirstOrDefault(x => x.Id == user.Id);
+                if (obj is null) return; // borrado en paralelo: no hay nada que actualizar
+                obj.Name = user.Name;
+                obj.LastName = user.LastName;
+                obj.Password = user.Password;
+                obj.Email = user.Email;
+                obj.UserName = user.UserName;
+                obj.Adress = user.Adress;
+            }
         }
 
         public void DeleteUser(User user)
         {
-            users.Remove(user);
+            lock (Sync) users.Remove(user);
         }
 
         public void ActiveUser(int id)
         {
-            var obj = users.FirstOrDefault(x => x.Id == id);
-            obj.IsActive = true;
+            lock (Sync)
+            {
+                var obj = users.FirstOrDefault(x => x.Id == id);
+                if (obj is not null) obj.IsActive = true;
+            }
         }
 
+        // M10: el email no distingue mayúsculas (la contraseña sí)
         public bool ValidateUserCredentials(string userEmail, string userPassword)
         {
-            return users.Any(p => p.Email == userEmail && p.Password == userPassword);
+            lock (Sync) return users.Any(p => string.Equals(p.Email, userEmail, StringComparison.OrdinalIgnoreCase) && p.Password == userPassword);
         }
 
-        public bool ValidateUserNickName(string userNickName)
+        public bool ValidateUserNickName(string userNickName, int exceptId = 0)
         {
-            return users.Any(p => p.UserName == userNickName);
+            lock (Sync) return users.Any(p => p.Id != exceptId && p.UserName == userNickName);
         }
 
-        public bool ValidateUserMail(string userMail)
+        public bool ValidateUserMail(string userMail, int exceptId = 0)
         {
-            return users.Any(p => p.Email == userMail);
+            lock (Sync) return users.Any(p => p.Id != exceptId && string.Equals(p.Email, userMail, StringComparison.OrdinalIgnoreCase));
         }
         #endregion
 

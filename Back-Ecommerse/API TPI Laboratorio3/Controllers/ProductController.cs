@@ -47,7 +47,8 @@ namespace API_TPI_Laboratorio3.Controllers
         {
             try
             {
-                return Ok(_productService.GetProductById(id));
+                var product = _productService.GetProductById(id);
+                return product is null ? NotFound("Producto no encontrado.") : Ok(product);
             }
             catch (Exception ex)
             {
@@ -69,27 +70,27 @@ namespace API_TPI_Laboratorio3.Controllers
         }
 
         [HttpPut("{id}")]
-        public void UpdateProduct([FromRoute] int id, [FromBody] ProductDto product)
+        public IActionResult UpdateProduct([FromRoute] int id, [FromBody] ProductDto product)
         {
-            _productService.UpdateProduct(id, product);
+            return _productService.UpdateProduct(id, product) ? NoContent() : NotFound("Producto no encontrado.");
         }
 
         [HttpPut("baja/{id}")] // PARA HACER LA BAJA LOGICA
-        public void UpdateProductDisponibleBaja([FromRoute] int id)
+        public IActionResult UpdateProductDisponibleBaja([FromRoute] int id)
         {
-            _productService.UpdateProductDisponibleBaja(id);
+            return _productService.UpdateProductDisponibleBaja(id) ? NoContent() : NotFound("Producto no encontrado.");
         }
 
         [HttpPut("alta/{id}")] // PARA HACER LA ALTA LOGICA
-        public void UpdateProductDisponibleAlta([FromRoute] int id)
+        public IActionResult UpdateProductDisponibleAlta([FromRoute] int id)
         {
-            _productService.UpdateProductDisponibleAlta(id);
+            return _productService.UpdateProductDisponibleAlta(id) ? NoContent() : NotFound("Producto no encontrado.");
         }
 
         [HttpDelete("{id}")]
-        public void DeleteProduct([FromRoute] int id)
+        public IActionResult DeleteProduct([FromRoute] int id)
         {
-            _productService.DeleteProduct(id);
+            return _productService.DeleteProduct(id) ? NoContent() : NotFound("Producto no encontrado.");
         }
 
         [HttpPost]

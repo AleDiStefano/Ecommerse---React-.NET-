@@ -37,7 +37,8 @@ namespace API_TPI_Laboratorio3.Controllers
         {
             try
             {
-                return Ok(_userService.GetUserById(id));
+                var user = _userService.GetUserById(id);
+                return user is null ? NotFound("Usuario no encontrado.") : Ok(user);
             }
             catch (Exception ex)
             {
@@ -50,7 +51,8 @@ namespace API_TPI_Laboratorio3.Controllers
         {
             try
             {
-                return Ok(_userService.GetUserByEmail(email));
+                var user = _userService.GetUserByEmail(email);
+                return user is null ? NotFound("Usuario no encontrado.") : Ok(user);
             }
             catch (Exception ex)
             {
@@ -85,34 +87,61 @@ namespace API_TPI_Laboratorio3.Controllers
         }
 
         [HttpPut("{id}")]
-        public void UpdateUser([FromRoute] int id, [FromBody] UserDTO user)
+        public IActionResult UpdateUser([FromRoute] int id, [FromBody] UserDTO user)
         {
-            _userService.UpdateUser(id, user);
+            try
+            {
+                return _userService.UpdateUser(id, user) ? NoContent() : NotFound("Usuario no encontrado.");
+            }
+            catch (InvalidOperationException ex) // email o userName ya son de otro usuario
+            {
+                return Conflict(ex.Message);
+            }
         }
 
         [HttpDelete("{id}")]
-        public void DeleteUser([FromRoute] int id)
+        public IActionResult DeleteUser([FromRoute] int id)
         {
-            _userService.DeleteUser(id);
+            return _userService.DeleteUser(id) ? NoContent() : NotFound("Usuario no encontrado.");
         }
 
 
-        [HttpPut("/{id}")]
-        public void ActiveUser([FromRoute] int id)
+        // Antes era PUT /{id} en la raíz (sin consumidores): hacía que cualquier GET desconocido diera 405.
+        [HttpPut("{id}/activate")]
+        public IActionResult ActiveUser([FromRoute] int id)
         {
-            _userService.ActiveUser(id);
+            return _userService.ActiveUser(id) ? NoContent() : NotFound("Usuario no encontrado.");
         }
 
+        // /customer y /seller (sin api/User) son alias legacy del front anterior: quitarlos cuando ya no los use.
+        [HttpPost("customer")]
         [HttpPost("/customer")]
-        public User CreateUserClient([FromBody] UserDTO user)
+        public ActionResult<User> CreateUserClient([FromBody] UserDTO user)
         {
-            return _userService.CreateUserClient(user);
+            return Create(() => _userService.CreateUserClient(user));
         }
 
+        [HttpPost("seller")]
         [HttpPost("/seller")]
-        public User CreateUserSeller([FromBody] UserDTO user)
+        public ActionResult<User> CreateUserSeller([FromBody] UserDTO user)
         {
-            return _userService.CreateUserSeller(user);
+            return Create(() => _userService.CreateUserSeller(user));
+        }
+
+        private ActionResult<User> Create(Func<User> create)
+        {
+            try
+            {
+                return Ok(create());
+            }
+            catch (ArgumentException ex) // falta la contraseña
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex) // email o userName ya registrados
+            {
+                return Conflict(ex.Message);
+            }
         }
 
 

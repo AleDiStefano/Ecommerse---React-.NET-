@@ -22,16 +22,19 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 #endregion
 
-var proveedor = builder.Services.BuildServiceProvider();
-var configuration = proveedor.GetService<IConfiguration>();
+// frontend_url acepta varios orígenes separados por coma (p. ej. dos fronts en puertos distintos).
+// Está en appsettings.json: antes solo existía en Development y en cualquier otro entorno el arranque fallaba.
+// El TrimEnd('/') es porque el navegador manda el origen sin barra final y CORS compara el texto tal cual.
+var frontendUrls = (builder.Configuration["frontend_url"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(url => url.TrimEnd('/'))
+    .ToArray();
 
 builder.Services.AddCors(opciones =>
 {
-    var fronendURL = configuration.GetValue<String>("frontend_url");
-
-    opciones.AddDefaultPolicy(builder =>
+    opciones.AddDefaultPolicy(policy =>
     {
-        builder.WithOrigins(fronendURL).AllowAnyMethod().AllowAnyHeader();
+        policy.WithOrigins(frontendUrls).AllowAnyMethod().AllowAnyHeader();
     });
 });
 

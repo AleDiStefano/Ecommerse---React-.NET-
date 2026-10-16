@@ -19,7 +19,7 @@ namespace Application.Services
             _mainRepository = mainRepository;
         }
 
-        public Order GetOrderById(int id)
+        public Order? GetOrderById(int id)
         {
             return _mainRepository.GetOrderById(id);
         }
@@ -31,24 +31,38 @@ namespace Application.Services
 
         public Order CreateOrder(OrderDto order)
         {
-            var user = _mainRepository.GetUserById(order.UserId);
+            var productsId = order.ProductsId;
+            if (productsId is null || productsId.Count == 0)
+                throw new InvalidOperationException("El pedido no tiene productos.");
 
-            List<Product> products = new List<Product>();
-
-            foreach (var product in order.ProductsId)
+            // Atomic: validar y descontar el stock no puede intercalarse con otro pedido (no queda stock negativo).
+            // shortcut: lock global en memoria; con una DB, una transacción con UPDATE ... WHERE stock >= n.
+            return _mainRepository.Atomic(() =>
             {
-                products.Add(_mainRepository.GetProductById(product));
-            }
+                var user = _mainRepository.GetUserById(order.UserId)
+                    ?? throw new InvalidOperationException("El usuario no existe.");
 
-            var orderCrear = new Order()
-            {
-                User = user,
-                Products = products
-            };
+                // ToList() valida TODAS las líneas antes de descontar nada: o entra el pedido entero o no entra nada
+                var lines = productsId.GroupBy(id => id).Select(g =>
+                {
+                    var product = _mainRepository.GetProductById(g.Key)
+                        ?? throw new InvalidOperationException($"El producto {g.Key} no existe.");
+                    var quantity = g.Count();
+                    if (!product.Avaible)
+                        throw new InvalidOperationException($"\"{product.Name}\" no está disponible.");
+                    if (product.Stock < quantity)
+                        throw new InvalidOperationException($"Stock insuficiente de \"{product.Name}\": quedan {product.Stock} y pediste {quantity}.");
+                    return (Product: product, Quantity: quantity);
+                }).ToList();
 
-            _mainRepository.CreateOrder(orderCrear);
+                foreach (var (product, quantity) in lines) product.Stock -= quantity;
 
-            return _mainRepository.GetOrderById(orderCrear.Id);
+                return _mainRepository.CreateOrder(new Order()
+                {
+                    User = user,
+                    Products = lines.SelectMany(l => Enumerable.Repeat(l.Product, l.Quantity)).ToList()
+                });
+            });
         }
     }
 }
