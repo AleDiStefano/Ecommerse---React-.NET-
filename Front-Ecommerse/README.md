@@ -2,6 +2,8 @@
 
 Tienda online de artículos deportivos: React 18, Vite 5 y react-bootstrap. El back (.NET 8) está en `../Back-Ecommerse`.
 
+El contexto del proyecto (un ejercicio para entender React, no un producto terminado) y la guía completa para correr back y front están en el [README de la raíz](../Readme.md).
+
 ## Cómo correrlo
 
 Back y front tienen que estar corriendo a la vez.
@@ -20,8 +22,8 @@ Queda en http://localhost:5077 (Swagger en `/swagger`), sin certificado. El perf
 
 ```bash
 npm install
-cp .env.example .env.local   # solo si el back corre con el perfil http (con el perfil https no hace falta: el default es https://localhost:7197)
-npm run dev                  # http://localhost:5173
+cp .env.example .env.local   
+npm run dev                  
 ```
 
 El puerto 5173 es fijo (`strictPort`): el CORS del back solo admite ese origen.
