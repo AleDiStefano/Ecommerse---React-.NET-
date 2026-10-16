@@ -1,14 +1,12 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 
 export const useForm = (initialForm = {}) => {
     const [formState, setFormState] = useState(initialForm);
 
+    // Actualización funcional: dos cambios seguidos (autofill, tipeo rápido) no se pisan entre sí.
     const onInputChange = ({ target }) => {
         const { name, value } = target;
-        setFormState({
-            ...formState,
-            [name]: value
-        });
+        setFormState((prev) => ({ ...prev, [name]: value }));
     };
 
     const onResetForm = () => {
@@ -18,6 +16,7 @@ export const useForm = (initialForm = {}) => {
     return {
         ...formState,
         formState,
+        setFormState,
         onInputChange,
         onResetForm,
     };

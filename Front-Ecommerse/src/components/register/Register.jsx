@@ -1,253 +1,189 @@
-import { Button, Form } from 'react-bootstrap';
-import './Register.css'
-import { useState, useContext, useRef } from "react";
-import { useForm } from '../../hook/useForm';
-import { useNavigate } from 'react-router-dom';
-import { AuthenticationContext } from '../../services/authentication/AuthenticationContext';
+import { useContext, useState } from 'react'
+import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap'
+import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from '../../hook/useForm'
+import { api } from '../../services/api'
+import { AuthenticationContext } from '../../services/authentication/AuthenticationContext'
+
+const NOT_BLANK = '.*\\S.*' // al menos un carácter que no sea espacio
+
+// Estos endpoints devuelven true cuando el valor está LIBRE (el nombre "EmailRegistered" engaña).
+const CHECKS = {
+  email: { path: '/api/User/EmailRegistered', taken: 'Ese email ya está registrado.' },
+  userName: { path: '/api/User/nickNameAvaible', taken: 'Ese nombre de usuario ya está en uso.' },
+}
 
 const Register = () => {
+  const { login } = useContext(AuthenticationContext)
+  const navigate = useNavigate()
+  const { name, lastName, email, userName, password, adress, onInputChange } = useForm({
+    name: '',
+    lastName: '',
+    email: '',
+    userName: '',
+    password: '',
+    adress: '',
+  })
+  const [validated, setValidated] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [created, setCreated] = useState(false)
+  // email / userName -> true (libre) | false (tomado) | undefined (sin verificar, o editado después de verificar).
+  const [free, setFree] = useState({})
 
-    const navigate = useNavigate()
-    const { handleLogin } = useContext(AuthenticationContext);
+  const onCheckedChange = (e) => {
+    setFree((prev) => ({ ...prev, [e.target.name]: undefined }))
+    onInputChange(e)
+  }
 
-    const { email, password, name, userNickName, lastName, userAdress, onInputChange, onResetForm } = useForm({
-        email: '',
-        password: '',
-        name: '',
-        userNickName: '',
-        lastName: '',
-        userAdress: ''
-    })
-
-    const [errors, setErrors] = useState({
-        email: false,
-        password: false,
-        name: false,
-        userNickName: false,
-        lastName: false,
-        userAdress: false
-    });
-
-    const emailRef = useRef(null);
-    const passwordRef = useRef(null);
-    const nameRef = useRef(null);
-    const userNickNameRef = useRef(null);
-    const lastNameRef = useRef(null);
-    const userAdressRef = useRef(null);
-
-    const onInputNickName = async (event) => {
-        const nickName = event.target.value;
-        if (nickName) {
-            try {
-                const response = await fetch(`https://localhost:7197/api/User/nickNameAvaible/${nickName}`, {
-                    method: "POST",
-                    mode: "cors",
-                });
-
-                if (!response.ok) {
-                    throw new Error("Error en el servidor");
-                }
-
-                const data = await response.json();
-                if (!data) {  // Suponiendo que data es un booleano
-                    //Se puede cambiar el contorno en rojo
-                    alert("Usuario inválido o en uso");
-                } else {
-                    //Se puede cambiar el contorno en verde
-                    alert("Usuario válido");
-                }
-            } catch (error) {
-                alert("Error al verificar el usuario");
-            }
-        }
-    };
-    const onInputEmail = async (event) => {
-        const Email = event.target.value;
-        if (Email) {
-            try {
-                const response = await fetch(`https://localhost:7197/api/User/EmailRegistered/${Email}`, {
-                    method: "POST",
-                    mode: "cors",
-                });
-
-                if (!response.ok) {
-                    throw new Error("Error en el servidor");
-                }
-
-                const data = await response.json();
-                if (!data) {  // Suponiendo que data es un booleano
-                    //Se puede cambiar el contorno en rojo
-                    alert("Este mail ya se encuentra registrado");
-                } else {
-                    //Se puede cambiar el contorno en verde
-                    alert("Mail valido");
-                }
-            } catch (error) {
-                alert("Error al verificar el mail");
-            }
-        }
-    };
-
-    const onRegister = async (event) => {
-        event.preventDefault()
-
-        if (!emailRef.current.value) {
-            emailRef.current.focus();
-            alert("Debe ingresar su email")
-            setErrors({ ...errors, email: true });
-            return;
-        }
-
-        if (!passwordRef.current.value) {
-            passwordRef.current.focus();
-            alert("Debe ingresar su contraseña")
-            setErrors({ ...errors, password: true });
-            return;
-        }
-
-        if (!nameRef.current.value) {
-            nameRef.current.focus();
-            alert("Debe ingresar su contraseña")
-            setErrors({ ...errors, password: true });
-            return;
-        }
-
-        if (!userNickNameRef.current.value) {
-            userNickNameRef.current.focus();
-            alert("Debe ingresar su nombre de usuario")
-            setErrors({ ...errors, userNickName: true });
-            return;
-        }
-
-        if (!lastNameRef.current.value) {
-            lastNameRef.current.focus();
-            alert("Debe ingresar su Apellido")
-            setErrors({ ...errors, lastName: true });
-            return;
-        }
-
-        if (!userAdressRef.current.value) {
-            userAdressRef.current.focus();
-            alert("Debe ingresar su Dirección")
-            setErrors({ ...errors, userAdress: true });
-            return;
-        }
-
-        setErrors({ ...errors, exist: false });
-
-
-        const newClient = {
-            name: name,
-            lastName: lastName,
-            password: password,
-            email: name,
-            userName: userNickName,
-            adress: userAdress
-        }
-        try {
-            const response = await fetch("https://localhost:7197/customer", {
-                method: "POST",
-                mode: "cors",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(newClient),
-            });
-            if (!response.ok) {
-                throw new Error("Error al registrarse");
-                alert("Error al registrarse");
-            }
-            handleLogin(email)
-            navigate('/')
-            onResetForm();
-        } catch (error) {
-            alert("Error al verificar el mail");
-        }
-
+  // Al salir del campo. El resultado "tomado" entra como customValidity (ref de cada input): así :invalid,
+  // checkValidity() y el estilo de Bootstrap coinciden y el envío queda bloqueado.
+  const checkFree = async ({ target }) => {
+    const value = target.value.trim()
+    if (!value || !target.checkValidity()) return
+    try {
+      const available = await api(`${CHECKS[target.name].path}/${encodeURIComponent(value)}`, { method: 'POST' })
+      if (target.value.trim() === value) setFree((prev) => ({ ...prev, [target.name]: available === true }))
+    } catch {
+      // shortcut: si el chequeo falla (red, 5xx) no se muestra nada; el alta igual responde 409 si el dato ya existe.
     }
+  }
 
+  const onSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    if (!e.currentTarget.checkValidity()) {
+      e.currentTarget.querySelector(':invalid')?.focus()
+      return setValidated(true)
+    }
+    setSubmitting(true)
+    try {
+      await api('/api/User/customer', {
+        method: 'POST',
+        body: { name: name.trim(), lastName: lastName.trim(), email, userName: userName.trim(), password, adress: adress.trim() },
+      })
+    } catch (err) {
+      setError(err.message) // 409: el mensaje del back ya viene en español
+      return setSubmitting(false)
+    }
+    try {
+      await login(email, password)
+      navigate('/', { replace: true })
+    } catch {
+      // La cuenta ya existe: no se vuelve a mostrar el formulario (reenviarlo daría 409).
+      setCreated(true)
+    }
+  }
 
-
-    return (
-        <div className='divBoxRegister'>
-            <div className='divRegister'>
-                <Form onSubmit={onRegister} className='form'>
-                    <h1>Registrate</h1>
-                    <Form.Group controlId="userName" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Name</Form.Label>
-                        <Form.Control
-                            type="text"
-                            placeholder='Ingrese su nombre...'
-                            name="name"
-                            value={name}
-                            ref={nameRef}
-                            onChange={onInputChange}
-                        />
+  return (
+    <Container className="py-4 py-md-5">
+      <Card className="eg-maxw-md mx-auto">
+        <Card.Body className="p-4">
+          <h1 className="h3 mb-4">Creá tu cuenta</h1>
+          {created ? (
+            <Alert variant="info" className="mb-0">
+              Tu cuenta se creó, pero no pudimos iniciar sesión. Probá{' '}
+              <Link to="/login" className="alert-link">
+                ingresando
+              </Link>
+              .
+            </Alert>
+          ) : (
+            <>
+              <Form noValidate validated={validated} onSubmit={onSubmit}>
+                <Row>
+                  <Col sm={6}>
+                    <Form.Group className="mb-3" controlId="register-name">
+                      <Form.Label>Nombre</Form.Label>
+                      <Form.Control name="name" value={name} onChange={onInputChange} required pattern={NOT_BLANK} maxLength={100} autoComplete="given-name" />
+                      <Form.Control.Feedback type="invalid">Ingresá tu nombre.</Form.Control.Feedback>
                     </Form.Group>
-                    <Form.Group controlId="userLastName" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Apellido</Form.Label>
-                        <Form.Control
-                            type="text"
-                            placeholder='Ingrese su apellido...'
-                            name="lastName"
-                            value={lastName}
-                            ref={lastNameRef}
-                            onChange={onInputChange}
-                        />
+                  </Col>
+                  <Col sm={6}>
+                    <Form.Group className="mb-3" controlId="register-lastName">
+                      <Form.Label>Apellido</Form.Label>
+                      <Form.Control name="lastName" value={lastName} onChange={onInputChange} required pattern={NOT_BLANK} maxLength={100} autoComplete="family-name" />
+                      <Form.Control.Feedback type="invalid">Ingresá tu apellido.</Form.Control.Feedback>
                     </Form.Group>
-                    <Form.Group controlId="userEmail" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Email</Form.Label>
-                        <Form.Control
-                            type="email"
-                            placeholder='Ingrese su email...'
-                            name="email"
-                            value={email}
-                            ref={emailRef}
-                            onChange={onInputChange}
-                            onBlur={onInputEmail}
-                        />
-                    </Form.Group>
-                    <Form.Group controlId="userNickName" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Nombre de usuario</Form.Label>
-                        <Form.Control
-                            type="text"
-                            placeholder='Ingrese su nombre de usuario...'
-                            name="userNickName"
-                            value={userNickName}
-                            ref={userNickNameRef}
-                            onChange={onInputChange}
-                            onBlur={onInputNickName}
-                        />
-                    </Form.Group>
-                    <Form.Group controlId="userPassword" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Contraseña</Form.Label>
-                        <Form.Control
-                            type="password"
-                            placeholder='Ingrese su contraseña...'
-                            name="password"
-                            value={password}
-                            ref={passwordRef}
-                            onChange={onInputChange}
-                        />
-                    </Form.Group>
-                    <Form.Group controlId="userAdress" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Dirección</Form.Label>
-                        <Form.Control
-                            type="text"
-                            placeholder='Ingrese su dirección...'
-                            name="userAdress"
-                            value={userAdress}
-                            ref={userAdressRef}
-                            onChange={onInputChange}
-                        />
-                    </Form.Group>
-                    <div className='box-button-register'>
-                        <Button type='submit' variant='warning' className="mb-3 mt-2 ps-5 pe-5 botonForm">Registrarse</Button>
-                    </div>
-                </Form>
-            </div>
-        </div>
-    )
+                  </Col>
+                </Row>
+                <Form.Group className="mb-3" controlId="register-email">
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={onCheckedChange}
+                    onBlur={checkFree}
+                    required
+                    maxLength={254}
+                    autoComplete="email"
+                    isValid={free.email === true}
+                    isInvalid={free.email === false}
+                    ref={(el) => el?.setCustomValidity(free.email === false ? CHECKS.email.taken : '')}
+                  />
+                  <Form.Control.Feedback type="invalid">{free.email === false ? CHECKS.email.taken : 'Ingresá un email válido.'}</Form.Control.Feedback>
+                  {free.email === true && <Form.Control.Feedback>Email disponible.</Form.Control.Feedback>}
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="register-userName">
+                  <Form.Label>Nombre de usuario</Form.Label>
+                  <Form.Control
+                    name="userName"
+                    value={userName}
+                    onChange={onCheckedChange}
+                    onBlur={checkFree}
+                    required
+                    pattern={NOT_BLANK}
+                    maxLength={50}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    isValid={free.userName === true}
+                    isInvalid={free.userName === false}
+                    ref={(el) => el?.setCustomValidity(free.userName === false ? CHECKS.userName.taken : '')}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {free.userName === false ? CHECKS.userName.taken : 'Ingresá un nombre de usuario.'}
+                  </Form.Control.Feedback>
+                  {free.userName === true && <Form.Control.Feedback>Nombre de usuario disponible.</Form.Control.Feedback>}
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="register-password">
+                  <Form.Label>Contraseña</Form.Label>
+                  <Form.Control
+                    type="password"
+                    name="password"
+                    value={password}
+                    onChange={onInputChange}
+                    required
+                    minLength={6}
+                    maxLength={100}
+                    autoComplete="new-password"
+                    aria-describedby="register-password-hint"
+                  />
+                  <Form.Text id="register-password-hint" muted>
+                    Mínimo 6 caracteres.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">Ingresá una contraseña válida.</Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="mb-4" controlId="register-adress">
+                  <Form.Label>Dirección</Form.Label>
+                  <Form.Control name="adress" value={adress} onChange={onInputChange} required pattern={NOT_BLANK} maxLength={200} autoComplete="street-address" />
+                  <Form.Control.Feedback type="invalid">Ingresá tu dirección.</Form.Control.Feedback>
+                </Form.Group>
+                {error && <Alert variant="danger">{error}</Alert>}
+                <Button type="submit" className="w-100" disabled={submitting}>
+                  {submitting && <Spinner size="sm" className="me-2" aria-hidden="true" />}Crear cuenta
+                </Button>
+              </Form>
+              <p className="text-center mt-4 mb-0">
+                ¿Ya tenés cuenta? <Link to="/login">Ingresá</Link>
+              </p>
+            </>
+          )}
+        </Card.Body>
+      </Card>
+    </Container>
+  )
 }
 
 export default Register

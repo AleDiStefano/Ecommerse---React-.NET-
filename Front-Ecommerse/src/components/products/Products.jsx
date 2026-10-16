@@ -1,155 +1,133 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
-import { Button } from 'react-bootstrap';
-import ProductsItem from '../productsItem/ProductsItem';
-import "./Products.css";
-import { AuthenticationContext } from '../../services/authentication/AuthenticationContext';
-import Form from 'react-bootstrap/Form';
+import { useContext, useRef, useState } from 'react'
+import { Alert, Button, Col, Container, Form, Pagination, Row, Spinner } from 'react-bootstrap'
+import { useApi } from '../../hook/useApi'
+import { AuthenticationContext } from '../../services/authentication/AuthenticationContext'
+import { STAFF } from '../../services/authentication/roles'
+import ProductsItem from '../productsItem/ProductsItem'
+
+const PAGE_SIZE = 12 // múltiplo de 2, 3 y 4: la grilla (xs / md / xl) nunca deja una fila a medias
+const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() // "estatica" encuentra "Estática"
 
 const Products = () => {
+  const { user } = useContext(AuthenticationContext)
+  const { data, error, loading, reload } = useApi('/api/Product')
+  // shortcut: búsqueda y página viven en estado local (al volver de un detalle se reinician); para compartirlas o volver al mismo punto, pasarlas a useSearchParams.
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const topRef = useRef(null)
+  const titleRef = useRef(null)
+  const searchRef = useRef(null)
+  const term = query.trim()
 
-    const [productData, setProductsData] = useState([]);
-    const [productDataFilter, setProductsFilter] = useState([]);
-    const [nameSearch, setNameSearch] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const productsPerPage = 16;
-    const { user } = useContext(AuthenticationContext);
+  // Orden: filtrar (el público solo ve disponibles; el staff ve todo) -> buscar -> paginar.
+  const isStaff = STAFF.includes(user?.userType)
+  const needle = fold(term)
+  const matches = (data ?? []).filter((p) => (isStaff || p.avaible) && fold(p.name ?? '').includes(needle))
+  const pages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE))
+  const current = Math.min(page, pages) // si la lista se achica (otra cuenta, otra búsqueda) nunca queda una página inexistente
+  const shown = matches.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
 
-    // Calcular el índice de los productos actuales
-    let indexOfLastProduct = currentPage * productsPerPage;
-    let indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-    let currentProducts = productData.slice(indexOfFirstProduct, indexOfLastProduct);
+  const updateQuery = (value) => {
+    setQuery(value)
+    setPage(1)
+  }
+  // Al cambiar de página se vuelve al inicio del catálogo (el paginador está al pie: sin esto se queda mirando el final)
+  // y el foco pasa al título: el link del paginador se reemplaza por un <span> al quedar activo y el foco se perdería.
+  const goTo = (n) => {
+    setPage(n)
+    topRef.current?.scrollIntoView()
+    titleRef.current?.focus({ preventScroll: true })
+  }
 
-    // Calcular el número total de páginas
-    const totalPages = Math.ceil(productData.length / productsPerPage);
+  let body
+  if (loading) {
+    body = (
+      <div className="text-center py-5">
+        <Spinner animation="border" role="status" className="text-primary">
+          <span className="visually-hidden">Cargando…</span>
+        </Spinner>
+      </div>
+    )
+  } else if (error) {
+    body = (
+      <Alert variant="danger" className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>{error.message}</span>
+        <Button size="sm" variant="outline-primary" onClick={reload}>Reintentar</Button>
+      </Alert>
+    )
+  } else if (matches.length === 0) {
+    body = term ? (
+      <div className="text-center py-5">
+        <p className="text-body-secondary text-break">No encontramos productos para «{term}».</p>
+        <Button
+          variant="outline-primary"
+          onClick={() => {
+            updateQuery('')
+            searchRef.current?.focus()
+          }}
+        >
+          Limpiar búsqueda
+        </Button>
+      </div>
+    ) : (
+      <p className="text-center text-body-secondary py-5">No hay productos para mostrar.</p>
+    )
+  } else {
+    body = (
+      <>
+        <Row xs={2} md={3} xl={4} className="g-3">
+          {shown.map((item) => (
+            <Col key={item.id}>
+              <ProductsItem item={item} />
+            </Col>
+          ))}
+        </Row>
+        {pages > 1 && (
+          // shortcut: muestra todas las páginas (flex-wrap evita el desborde); con más de ~10 conviene una ventana con elipsis.
+          <nav aria-label="Paginación de productos" className="mt-4">
+            <Pagination className="justify-content-center flex-wrap mb-0">
+              <Pagination.Item disabled={current === 1} onClick={() => goTo(current - 1)}>Anterior</Pagination.Item>
+              {Array.from({ length: pages }, (_, i) => (
+                <Pagination.Item key={i + 1} active={i + 1 === current} activeLabel="(página actual)" onClick={() => goTo(i + 1)}>
+                  {i + 1}
+                </Pagination.Item>
+              ))}
+              <Pagination.Item disabled={current === pages} onClick={() => goTo(current + 1)}>Siguiente</Pagination.Item>
+            </Pagination>
+          </nav>
+        )}
+      </>
+    )
+  }
 
-    // Manejar el cambio de página
-    const handlePageChange = useCallback((pageNumber) => {
-        setCurrentPage(pageNumber);
-    }, []);
+  return (
+    // scrollMarginTop: el navbar es sticky; sin esto goTo() dejaría el título debajo de él (igual que el skip link de MainLayout).
+    <Container ref={topRef} className="py-4 py-md-5" style={{ scrollMarginTop: '4.5rem' }}>
+      <Row className="align-items-center g-3 mb-4">
+        <Col md>
+          <h1 ref={titleRef} tabIndex={-1} className="mb-0">Productos</h1>
+          {/* role=status: quien usa lector de pantalla se entera de cuántos resultados dejó la búsqueda en vivo. */}
+          <p className="small text-body-secondary mb-0" role="status">
+            {!loading && !error && `${matches.length} ${matches.length === 1 ? 'producto' : 'productos'}`}
+          </p>
+        </Col>
+        <Col md={6} lg={5} xl={4}>
+          <Form.Group controlId="catalog-search" role="search">
+            <Form.Label visuallyHidden>Buscar productos por nombre</Form.Label>
+            <Form.Control
+              ref={searchRef}
+              type="search"
+              placeholder="Buscar por nombre"
+              autoComplete="off"
+              value={query}
+              onChange={(e) => updateQuery(e.target.value)}
+            />
+          </Form.Group>
+        </Col>
+      </Row>
+      {body}
+    </Container>
+  )
+}
 
-    // Manejar el cambio a la página siguiente
-    const handleNextPage = useCallback(() => {
-        if (currentPage < totalPages) {
-            setCurrentPage(currentPage + 1);
-        }
-    }, [currentPage, totalPages]);
-
-    // Manejar el cambio a la página anterior
-    const handlePrevPage = useCallback(() => {
-        if (currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-        }
-    }, [currentPage]);
-
-    useEffect(() => {
-        fetch("https://localhost:7197/api/Product", {
-            method: "GET",
-            mode: "cors",
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error("Error al obtener los productos");
-                }
-                return response.json();
-            })
-            .then((productsData) => {
-                setProductsData(productsData)
-                setProductsFilter(productsData)
-                indexOfLastProduct = currentPage * productsPerPage;
-                indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-                currentProducts = productsData.slice(indexOfFirstProduct, indexOfLastProduct);
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
-    }, []);
-
-    const handleNameSearch = (e) => {
-        setNameSearch(e.target.value);
-    };
-
-    const onHandleSearch = useCallback(() => {
-        if (!nameSearch) {
-            setProductsData(productDataFilter)
-        } else {
-            currentProducts = productDataFilter
-            const nameFilter = currentProducts.filter((product) => product.name.toLowerCase().includes(nameSearch.toLowerCase()));
-            setProductsData(nameFilter);
-        }
-
-    }, [nameSearch, currentProducts]);
-
-    return (
-        <div>
-            <div className='search-product'>
-                <Form.Control className="search-product-name" type="text" placeholder="Ingresar el nombre del producto" onChange={handleNameSearch} />
-                <Button type="button" className="mb-3 mt-2 ps-5 pe-5 search-product-button" onClick={onHandleSearch}>Buscar</Button>
-            </div>
-            {(user && user.userType !== 0) &&
-                <div className='products-container'>
-                    {currentProducts.map(item => (
-                        <div className="product-item" key={item.id}>
-                            <ProductsItem
-                                item={item}
-                            />
-                        </div>
-                    ))}
-                </div>}
-            {(user && user.userType === 0) &&
-                <div className='products-container'>
-                    {currentProducts.map(item => (
-                        item.avaible &&
-                        <div className="product-item" key={item.id}>
-                            <ProductsItem
-                                item={item}
-                            />
-                        </div>
-                    ))}
-                </div>}
-            {!user &&
-                <div className='products-container'>
-                    {currentProducts.map(item => (
-                        item.avaible &&
-                        <div className="product-item" key={item.id}>
-                            <ProductsItem
-                                item={item}
-                            />
-                        </div>
-                    ))}
-                </div>}
-            <div className="pagination">
-                <Button
-                    className="button button-change-page"
-                    onClick={() => handlePageChange(1)}
-                    disabled={currentPage === 1}
-                >{"<<"}</Button>
-                <Button
-                    className="button button-change-page"
-                    onClick={handlePrevPage}
-                    disabled={currentPage === 1}
-                >{"<"}</Button>
-                {Array.from({ length: totalPages }, (_, index) => (
-                    <Button
-                        key={index + 1}
-                        onClick={() => handlePageChange(index + 1)}
-                        className={`button button-change-page ${currentPage === index + 1 ? 'active' : ''}`}
-                    >
-                        {index + 1}
-                    </Button>
-                ))}
-                <Button
-                    className="button button-change-page"
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
-                >{">"}</Button>
-                <Button
-                    className="button button-change-page"
-                    onClick={() => handlePageChange(totalPages)}
-                    disabled={currentPage === totalPages}
-                >{">>"}</Button>
-            </div>
-        </div>
-    );
-};
-
-export default Products;
+export default Products

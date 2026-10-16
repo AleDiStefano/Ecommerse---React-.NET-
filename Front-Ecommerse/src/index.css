@@ -1,0 +1,183 @@
+/*
+  Único CSS global de EasyGrip: tokens (--eg-*), mapeo a Bootstrap (--bs-*) y overrides mínimos.
+  Se importa después de bootstrap.min.css (ver main.jsx). Los componentes no traen CSS propio salvo clases eg-*.
+  shortcut: theming por variables CSS; si hacen falta más variantes de color, pasar a Sass ($primary) con la devDependency `sass`.
+*/
+
+:root {
+  --eg-navy: #2c3959;        /* marca: header, botón primario, títulos, links */
+  --eg-navy-hover: #222c46;
+  --eg-navy-deep: #1a2236;   /* active, footer, overlay del hero */
+  --eg-peri: #95aadf;        /* acento: halo de foco y detalles SOBRE navy; nunca texto ni borde único sobre blanco (2.3:1) */
+  --eg-peri-soft: #dbe3f6;
+  --eg-peri-faint: #eef2fb;  /* thead, hover de filas, fondo de imágenes */
+  --eg-bg: #f4f6fb;
+  --eg-surface: #fff;
+  --eg-text: #1c2333;
+  --eg-muted: #5a6478;
+  --eg-border: #dfe4ef;
+  --eg-border-strong: #7c879f; /* bordes de controles: 3.6:1 (WCAG 1.4.11) */
+  --eg-shadow-sm: 0 1px 2px rgba(28, 35, 51, 0.06), 0 1px 3px rgba(28, 35, 51, 0.08);
+  --eg-shadow-md: 0 6px 18px rgba(28, 35, 51, 0.12);
+  --eg-focus-halo: 0 0 0 4px rgba(149, 170, 223, 0.7);
+}
+
+/* Se declara también en [data-bs-theme="light"]: el menú del carrito vive dentro del navbar dark y lo reactiva con ese atributo. */
+:root,
+[data-bs-theme="light"] {
+  --bs-font-sans-serif: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --bs-body-line-height: 1.55;
+  --bs-body-color: var(--eg-text);
+  --bs-body-color-rgb: 28, 35, 51;
+  --bs-emphasis-color: var(--eg-text); /* texto de tablas: sin esto es negro puro */
+  --bs-emphasis-color-rgb: 28, 35, 51;
+  --bs-secondary-color: var(--eg-muted);
+  --bs-heading-color: var(--eg-navy);
+  --bs-primary: var(--eg-navy);
+  --bs-primary-rgb: 44, 57, 89;
+  --bs-link-color: var(--eg-navy);
+  --bs-link-color-rgb: 44, 57, 89;
+  --bs-link-hover-color: var(--eg-navy-hover);
+  --bs-link-hover-color-rgb: 34, 44, 70;
+  --bs-border-color: var(--eg-border);
+  --bs-border-radius: 0.5rem;
+  --bs-border-radius-lg: 0.75rem;
+}
+
+/* --bs-body-bg queda blanco: cards, inputs, dropdowns y tablas son blancos sin overrides. */
+body {
+  background-color: var(--eg-bg);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+h1 {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  font-weight: 700;
+}
+h2 {
+  font-size: 1.5rem;
+}
+h3 {
+  font-size: 1.25rem;
+}
+
+/* Foco: anillo navy (se ve sobre claro) + halo periwinkle (se ve sobre el navbar). !important porque Bootstrap
+   define el suyo con más especificidad en cada componente. */
+:is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--eg-navy) !important;
+  outline-offset: 2px;
+  box-shadow: var(--eg-focus-halo) !important;
+}
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: var(--eg-navy);
+  box-shadow: var(--eg-focus-halo);
+}
+
+/* Bootstrap compila los colores de .btn-* fijos: se redefinen sus variables locales. */
+.btn-primary {
+  --bs-btn-bg: var(--eg-navy);
+  --bs-btn-border-color: var(--eg-navy);
+  --bs-btn-hover-bg: var(--eg-navy-hover);
+  --bs-btn-hover-border-color: var(--eg-navy-hover);
+  --bs-btn-active-bg: var(--eg-navy-deep);
+  --bs-btn-active-border-color: var(--eg-navy-deep);
+  --bs-btn-disabled-bg: var(--eg-navy);
+  --bs-btn-disabled-border-color: var(--eg-navy);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--eg-navy);
+  --bs-btn-border-color: var(--eg-navy);
+  --bs-btn-hover-bg: var(--eg-navy);
+  --bs-btn-hover-border-color: var(--eg-navy);
+  --bs-btn-active-bg: var(--eg-navy-deep);
+  --bs-btn-active-border-color: var(--eg-navy-deep);
+  --bs-btn-disabled-color: var(--eg-navy);
+  --bs-btn-disabled-border-color: var(--eg-navy);
+}
+
+.form-label {
+  font-weight: 500;
+}
+.form-control,
+.form-select {
+  border-color: var(--eg-border-strong);
+}
+.form-check-input {
+  --bs-border-color: var(--eg-border-strong);
+}
+.form-check-input:checked {
+  background-color: var(--eg-navy);
+  border-color: var(--eg-navy);
+}
+
+.card {
+  --bs-card-border-color: var(--eg-border);
+  --bs-card-border-radius: 0.75rem;
+  box-shadow: var(--eg-shadow-sm);
+}
+
+.pagination {
+  --bs-pagination-color: var(--eg-navy);
+  --bs-pagination-hover-color: var(--eg-navy);
+  --bs-pagination-hover-bg: var(--eg-peri-faint);
+  --bs-pagination-focus-color: var(--eg-navy);
+  --bs-pagination-focus-bg: var(--eg-peri-faint);
+  --bs-pagination-focus-box-shadow: none;
+  --bs-pagination-active-bg: var(--eg-navy);
+  --bs-pagination-active-border-color: var(--eg-navy);
+}
+
+.table {
+  --bs-table-hover-bg: var(--eg-peri-faint);
+}
+.table > thead {
+  --bs-table-bg: var(--eg-peri-faint);
+}
+
+/* Utilidades propias (solo lo que una utilidad de Bootstrap no resuelve). */
+.eg-maxw-sm { max-width: 28rem; }  /* card de login */
+.eg-maxw-md { max-width: 40rem; }  /* card de registro, pago, formularios de producto y usuario */
+.eg-price {
+  color: var(--eg-navy);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.eg-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* Miniatura/imagen de producto: cuadrada, sin recortar, sobre fondo tenue. */
+.eg-media {
+  aspect-ratio: 1;
+  object-fit: contain;
+  background-color: var(--eg-peri-faint);
+  border-radius: var(--bs-border-radius);
+}
+
+/* Card de producto clickeable (stretched-link): el foco rodea toda la card en vez de solo el nombre, y el hover la eleva. */
+@supports selector(:has(*)) { /* sin :has() el anillo de la card no existe: ahí se conserva el del link */
+  .stretched-link:focus-visible {
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+}
+.card:has(.stretched-link:focus-visible) {
+  outline: 2px solid var(--eg-navy);
+  outline-offset: 2px;
+  box-shadow: var(--eg-focus-halo);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card:has(.stretched-link) {
+    transition: box-shadow 150ms, transform 150ms;
+  }
+  .card:has(.stretched-link):hover {
+    box-shadow: var(--eg-shadow-md);
+    transform: translateY(-2px);
+  }
+}

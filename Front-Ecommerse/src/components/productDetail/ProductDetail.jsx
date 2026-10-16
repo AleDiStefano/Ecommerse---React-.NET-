@@ -1,190 +1,169 @@
-import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
-import { Button, Card, ListGroup, ListGroupItem } from 'react-bootstrap';
-import Col from 'react-bootstrap/Col';
-import Container from 'react-bootstrap/Container';
-import Image from 'react-bootstrap/Image';
-import Row from 'react-bootstrap/Row';
-import Form from 'react-bootstrap/Form';
-import "./ProductDetail.css";
-import { CartContext } from '../../services/cart/CartContext';
-import UpdateProducts from '../updateProducts/UpdateProducts';
-import { AuthenticationContext } from '../../services/authentication/AuthenticationContext';
+import { useContext, useState } from 'react'
+import { Alert, Badge, Button, Card, Col, Container, Row, Spinner } from 'react-bootstrap'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useApi } from '../../hook/useApi'
+import { api } from '../../services/api'
+import { AuthenticationContext } from '../../services/authentication/AuthenticationContext'
+import { STAFF } from '../../services/authentication/roles'
+import { CartContext } from '../../services/cart/CartContext'
+import { PLACEHOLDER, formatPrice, onImgError } from '../../services/format'
 
-export const ProductsAddedContext = createContext({});
+// Un id que no es un entero corto ni se le pide al back: responde 400 con un mensaje del framework en inglés.
+const ID_PATTERN = /^\d{1,9}$/
 
-const ProductDetail = () => {
-  const { id } = useParams();
-  const [error, setError] = useState(false);
-  const [productOnScreen, setProductOnScreen] = useState({});
-  const { handleAddCart } = useContext(CartContext);
-  const { user } = useContext(AuthenticationContext);
-  const navigate = useNavigate();
-  useEffect(() => {
-    fetch(`https://localhost:7197/api/Product/id/${id}`, { // Asegúrate de usar backticks aquí
-      method: "GET",
-      mode: "cors",
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Error al obtener el producto");
-        }
-        return response.json();
-      })
-      .then((productsData) => {
-        let productFromAPI = {
-          brand: productsData.brand,
-          category: productsData.category,
-          description: productsData.description,
-          id: productsData.id,
-          image: productsData.image,
-          name: productsData.name,
-          price: productsData.price,
-          stock: productsData.stock,
-          avaible: productsData.avaible,
-          quantity: 1
-        }
-        setProductOnScreen(productFromAPI)
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
-  }, []);
+const Detail = ({ id }) => {
+  const { user } = useContext(AuthenticationContext)
+  const { items, addItem } = useContext(CartContext)
+  const { pathname } = useLocation()
+  const { data: product, error, loading, setData, reload } = useApi(ID_PATTERN.test(id) ? `/api/Product/id/${id}` : null)
+  const [qty, setQty] = useState(1)
+  const [notice, setNotice] = useState(null) // { variant, text, link: 'login' | 'cart' }
+  const [adminError, setAdminError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-
-  const onHandleAdd = () => {
-    setProductOnScreen((prevProduct) => ({
-      ...prevProduct,
-      quantity: prevProduct.quantity + 1
-    }));
-  };
-
-  const handleAddCarrito = () => {
-    !user ? alert("Debe loguearse primero") :
-      handleAddCart(productOnScreen.quantity, productOnScreen);
-    setProductOnScreen((prevProduct) => ({
-      ...prevProduct,
-      quantity: 1
-    }));
-  };
-
-  const onHandleDelete = () => {
-    setProductOnScreen((prevProduct) => ({
-      ...prevProduct,
-      quantity: prevProduct.quantity - 1
-    }));
-  };
-
-  const handleBaja = () => {
-    fetch(`https://localhost:7197/api/Product/baja/${id}`, {
-      method: "PUT",
-      mode: "cors",
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Error al actualizar el producto");
-        }
-        setProductOnScreen(prevState => ({
-          ...prevState,
-          avaible: false
-        }));
-      })
-      .catch((error) => {
-        navigate("/*")
-        console.error("Error:", error);
-      });
-  };
-
-  const handleAlta = () => {
-    fetch(`https://localhost:7197/api/Product/alta/${id}`, {
-      method: "PUT",
-      mode: "cors",
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Error al actualizar el producto");
-        }
-        setProductOnScreen(prevState => ({
-          ...prevState,
-          avaible: true
-        }));
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
-  };
-
-
+  if (loading) {
+    return (
+      <Container className="py-4 py-md-5 text-center">
+        <Spinner animation="border" role="status" className="text-primary my-5">
+          <span className="visually-hidden">Cargando…</span>
+        </Spinner>
+      </Container>
+    )
+  }
   if (error) {
-    return <div>Producto no encontrado</div>;
+    return (
+      <Container className="py-4 py-md-5">
+        <Alert variant="danger" className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span>{error.message}</span>
+          <Button size="sm" variant="outline-primary" onClick={reload}>Reintentar</Button>
+        </Alert>
+        <Link to="/productos">Volver a productos</Link>
+      </Container>
+    )
+  }
+  if (!product) {
+    return (
+      <Container className="py-4 py-md-5">
+        <Card className="eg-maxw-md mx-auto text-center">
+          <Card.Body className="p-4 p-md-5">
+            <h1 className="h3">Producto no encontrado</h1>
+            <p className="text-body-secondary">Puede que el enlace tenga un error o que el producto ya no exista.</p>
+            <Link to="/productos" className="btn btn-primary">Ver productos</Link>
+          </Card.Body>
+        </Card>
+      </Container>
+    )
   }
 
-  const onHandleUpdate = () => {
-    navigate(`/updateproduct/${productOnScreen.id}`);
+  const canBuy = product.avaible && product.stock > 0
+  const status = !product.avaible ? 'No disponible' : product.stock < 1 ? 'Sin stock' : 'Disponible'
+
+  const onAdd = () => {
+    if (!user) {
+      return setNotice({ variant: 'info', text: 'Iniciá sesión para agregar productos al carrito.', link: 'login' })
+    }
+    const before = items.find((i) => i.id === product.id)?.quantity ?? 0
+    const after = addItem(product, qty)
+    if (after === 0) setNotice({ variant: 'danger', text: 'Este producto no está disponible.' })
+    else if (after < before + qty) {
+      setNotice({ variant: 'info', text: `Solo quedan ${product.stock} unidades y ya las tenés en el carrito.`, link: 'cart' })
+    } else setNotice({ variant: 'success', text: 'Agregado al carrito.', link: 'cart' })
+    setQty(1)
   }
 
-  const handleReturn = () => {
-    navigate("/productos")
+  // Baja/alta: se espera al back y recién ahí se actualiza la vista; si falla, el error queda a la vista y nada cambia.
+  const toggleAvailability = async () => {
+    const next = !product.avaible
+    setBusy(true)
+    setAdminError('')
+    try {
+      await api(`/api/Product/${next ? 'alta' : 'baja'}/${encodeURIComponent(product.id)}`, { method: 'PUT' })
+      setData((prev) => ({ ...prev, avaible: next }))
+    } catch (e) {
+      setAdminError(e.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <div className='box-product-detail'>
-      <Container className="main-container">
-        <Container className='img-main-product-detail'>
-          <Row>
-            <Col className='box-image-product-detail'>
-              <Image className='image img-fluid' src={productOnScreen.image} rounded />
-            </Col>
-          </Row>
-        </Container>
+    <Container className="py-4 py-md-5">
+      <Link to="/productos" className="btn btn-link px-0 mb-3">
+        <span aria-hidden="true">← </span>Volver a productos
+      </Link>
+      <Row className="g-4 g-lg-5">
+        <Col lg={5}>
+          <Card className="eg-maxw-sm mx-auto">
+            <Card.Body className="p-2 p-sm-3">
+              <img src={product.image || PLACEHOLDER} alt={product.name} onError={onImgError} className="eg-media bg-white d-block w-100" />
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col lg={7}>
+          <p className="small text-uppercase text-body-secondary text-break mb-1">{product.category}</p>
+          <h1 className="text-break mb-1">{product.name}</h1>
+          <p className="text-body-secondary text-break mb-3">Marca: {product.brand}</p>
+          <p className="eg-price fs-2 text-break mb-2">{formatPrice(product.price)}</p>
+          <p className="d-flex flex-wrap align-items-center gap-2 mb-4">
+            <Badge bg={canBuy ? 'success' : 'secondary'}>{status}</Badge>
+            {canBuy && (
+              <span className="text-body-secondary">
+                {product.stock} {product.stock === 1 ? 'unidad' : 'unidades'} en stock
+              </span>
+            )}
+          </p>
+          <p className="text-break mb-4">{product.description}</p>
 
-        <Container className='data'>
-          <Form>
-            <Form.Group className="mb-3" controlId="nameId">
-              <Form.Label><b>{productOnScreen.name}</b></Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="priceId">
-              <Form.Label><strong>Precio:</strong> ${productOnScreen.price}</Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="descriptionId">
-              <Form.Label><strong>Descripcion: </strong>{productOnScreen.description}</Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="stockId">
-              <Form.Label><strong>Stock: </strong> {productOnScreen.stock} unidades</Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="categoryId">
-              <Form.Label><strong>Categoría: </strong> {productOnScreen.category}</Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="brandId">
-              <Form.Label><strong>Marca: </strong> {productOnScreen.brand}</Form.Label>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="disponibleId">
-              <Form.Label><strong>Disponible: </strong> {productOnScreen.avaible ? "Disponible" : "No disponible"}</Form.Label>
-            </Form.Group>
-          </Form>
+          <div className="d-flex flex-wrap align-items-center gap-3">
+            {canBuy && (
+              <div className="d-flex align-items-center gap-1" role="group" aria-label="Cantidad">
+                <Button variant="outline-primary" size="lg" aria-label="Quitar una unidad" disabled={qty <= 1} onClick={() => setQty(qty - 1)}>
+                  −
+                </Button>
+                <output className="px-3 fs-5 fw-semibold">{qty}</output>
+                <Button variant="outline-primary" size="lg" aria-label="Agregar una unidad" disabled={qty >= product.stock} onClick={() => setQty(qty + 1)}>
+                  +
+                </Button>
+              </div>
+            )}
+            <Button size="lg" className="flex-grow-1 flex-sm-grow-0" disabled={!canBuy} onClick={onAdd}>
+              {canBuy ? 'Agregar al carrito' : status}
+            </Button>
+          </div>
+          {notice && (
+            <Alert variant={notice.variant} className="mt-3 mb-0">
+              {notice.text}{' '}
+              {notice.link === 'login' && <Alert.Link as={Link} to="/login" state={{ from: pathname }}>Ingresar</Alert.Link>}
+              {notice.link === 'cart' && <Alert.Link as={Link} to="/carrito">Ver carrito</Alert.Link>}
+            </Alert>
+          )}
 
-          <Container className='buttonsBox'>
-            <Container className='data'>
-              <Button className='button button-add' onClick={onHandleAdd}>+</Button>
-              <Button className='button button-add' variant="primary" onClick={handleAddCarrito}>Agregar al Carrito {productOnScreen.quantity}</Button>
-              <Button className='button button-add' onClick={onHandleDelete}>-</Button>
-              <Button className='button button-return' onClick={handleReturn}>Volver</Button>
-            </Container>
-            {user && user.userType !== 0 &&
-              <Container className='button-for-seller'>
-                {user && user.userType !== 0 &&
-                  <Container>
-                    <Button className='button button-for-seller-action' variant="warning" onClick={onHandleUpdate}>Editar</Button>
-                    {productOnScreen.avaible
-                      ? <Button className='button button-for-seller-action' variant="danger" onClick={handleBaja}>Dar de baja</Button>
-                      : <Button className='button button-for-seller-action' variant="success" onClick={handleAlta}>Dar de alta</Button>}
-                  </Container>}
-              </Container>}
-          </Container>
-        </Container>
-      </Container>
-    </div>
-  );
-};
+          {/* Card blanca: sobre el fondo de la página (#f4f6fb) el texto de outline-danger/success no llega a 4.5:1; sobre blanco sí. */}
+          {STAFF.includes(user?.userType) && (
+            <Card as="section" className="mt-4" aria-labelledby="product-admin">
+              <Card.Body>
+                <h2 id="product-admin" className="h6 text-uppercase text-body-secondary">Administración</h2>
+                <div className="d-flex flex-wrap gap-2">
+                  <Link to={`/updateproduct/${product.id}`} className="btn btn-outline-primary">Editar</Link>
+                  <Button variant={product.avaible ? 'outline-danger' : 'outline-success'} disabled={busy} onClick={toggleAvailability}>
+                    {busy && <Spinner size="sm" className="me-2" aria-hidden="true" />}
+                    {product.avaible ? 'Dar de baja' : 'Dar de alta'}
+                  </Button>
+                </div>
+                {adminError && <Alert variant="danger" className="mt-3 mb-0">{adminError}</Alert>}
+              </Card.Body>
+            </Card>
+          )}
+        </Col>
+      </Row>
+    </Container>
+  )
+}
 
-export default ProductDetail;
+// key={id}: al cambiar de producto (:id) se reinician cantidad, avisos y errores en vez de arrastrarlos del anterior.
+const ProductDetail = () => {
+  const { id } = useParams()
+  return <Detail key={id} id={id} />
+}
+
+export default ProductDetail

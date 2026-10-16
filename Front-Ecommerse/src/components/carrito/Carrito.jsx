@@ -1,124 +1,98 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Button, Form, ListGroup } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
-import { CartContext } from '../../services/cart/CartContext';
-import './Carrito.css';
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import PropTypes from "prop-types";
-import lapiz from '/public/lapiz.png';
-import cruz from '/public/cruz2.png';
-import check from '/public/check3.png';
-import { AuthenticationContext } from '../../services/authentication/AuthenticationContext';
+import { useContext } from 'react'
+import { Button, Card, Container, ListGroup } from 'react-bootstrap'
+import { Link } from 'react-router-dom'
+import { CartContext } from '../../services/cart/CartContext'
+import { PLACEHOLDER, formatPrice, onImgError } from '../../services/format'
 
-const Carrito = ({ setCartProducts }) => {
-  const [showPayMethod, setShowPayMethod] = useState(false);
-  const { handleProduct, handleAddCart } = useContext(CartContext);
-  const [products, setProducts] = useState([]);
-  const [editableIndex, setEditableIndex] = useState(null);
-  const [newQuantity, setNewQuantity] = useState(0);
-  const navigate = useNavigate();
-  const { user } = useContext(AuthenticationContext);
+// Contenido del carrito: lo usa el menú del navbar y la página /carrito. Sin props: el estado vive en CartContext.
+const Carrito = () => {
+  const { items, total, setQuantity, removeItem } = useContext(CartContext)
 
-  useEffect(() => {
-    setProducts(handleProduct());
-  }, [handleProduct]);
-
-  const handleUpdateProduct = (index) => {
-    setEditableIndex(index);
-    setNewQuantity(products[index].quantity);
-  };
-
-  const handleRemoveProduct = (index) => {
-    const newProducts = [...products];
-    newProducts.splice(index, 1);
-    setProducts(newProducts);
-    setCartProducts(newProducts);
-
-  };
-
-  const handleSaveProduct = (index) => {
-    const updatedProducts = [...products];
-    if (newQuantity > 0) {
-      updatedProducts[index].quantity = newQuantity;
-      setProducts(updatedProducts);
-      setCartProducts(updatedProducts);
-      setEditableIndex(null);
-    } else {
-      alert("La cantidad no puede ser menor a uno")
-    }
-
-  };
-
-  const handlePay = () => {
-    if (products.length === 0) {
-      alert("Debe agregar productos al carrito");
-    } else {
-      !user ? alert("Debe loguearse primero") :
-        navigate('/paymethod');
-    }
-  };
-
-  const handleBack = () => {
-    setShowPayMethod(false);
-  };
+  if (items.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <p className="mb-2">Tu carrito está vacío.</p>
+        <Link to="/productos">Ver productos</Link>
+      </div>
+    )
+  }
 
   return (
-    <div className='box'>
-      <div className='top'>
-        {products.length === 0 ? (
-          <p>El carrito está vacío</p>
-        ) : (
-          <Container className='container-cart'>
-            <Form className='form-cart'>
-              {products.map((product, index) => (
-                <Row key={index} className='d-flex justify-content-between align-items-center product'>
-                  <Col><span>{product.name}</span></Col>
-                  <Col><span>${product.price.toFixed(2)}</span></Col>
-                  <Col>
-                    {editableIndex === index ? (
-                      <Form.Control
-                        type="number"
-                        value={newQuantity}
-                        onChange={(e) => setNewQuantity(e.target.value)}
-                        className='quantity-update-input'
-                      />
-                    ) : (
-                      <Form.Control type="text" value={product.quantity} readOnly />
-                    )}
-                  </Col>
-                  <Col>
-                    {editableIndex === index ? (
-                      <Button className='check-cart' size='sm' onClick={() => handleSaveProduct(index)}>
-                        <img className="icono-grilla" src={check} alt="delete" />
-                      </Button>
-                    ) : (
-                      <Button className='update-cart' size='sm' onClick={() => handleUpdateProduct(index)}>
-                        <img className="icono-grilla" src={lapiz} alt="update" />
-                      </Button>
-                    )}
-                  </Col>
-                  <Col>
-                    <Button variant='danger' size='sm' onClick={() => handleRemoveProduct(index)}>
-                      <img className="icono-grilla" src={cruz} alt="delete" />
-                    </Button>
-                  </Col>
-                </Row>
-              ))}
-            </Form>
-          </Container>
-        )}
+    <>
+      <ListGroup as="ul" variant="flush" className="eg-cart-list">
+        {items.map((item) => (
+          <ListGroup.Item as="li" key={item.id} className="d-flex gap-3">
+            <img
+              src={item.image || PLACEHOLDER}
+              alt=""
+              width="56"
+              height="56"
+              loading="lazy"
+              className="eg-media flex-shrink-0"
+              onError={onImgError}
+            />
+            <div className="flex-grow-1 overflow-hidden">
+              <div className="d-flex justify-content-between align-items-start gap-2">
+                <span className="fw-semibold eg-clamp-2">{item.name}</span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="p-0 text-danger text-nowrap"
+                  aria-label={`Quitar ${item.name} del carrito`}
+                  onClick={() => removeItem(item.id)}
+                >
+                  Quitar
+                </Button>
+              </div>
+              <div className="small text-body-secondary">{formatPrice(item.price)} c/u</div>
+              <div className="d-flex align-items-center justify-content-between gap-2 mt-2">
+                <div className="d-flex align-items-center gap-1" role="group" aria-label={`Cantidad de ${item.name}`}>
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    aria-label={`Quitar una unidad de ${item.name}`}
+                    disabled={item.quantity <= 1}
+                    onClick={() => setQuantity(item.id, item.quantity - 1)}
+                  >
+                    −
+                  </Button>
+                  <output className="px-2 fw-semibold text-center">{item.quantity}</output>
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    aria-label={`Agregar una unidad de ${item.name}`}
+                    disabled={item.quantity >= item.stock}
+                    onClick={() => setQuantity(item.id, item.quantity + 1)}
+                  >
+                    +
+                  </Button>
+                  {item.quantity >= item.stock && <span className="small text-body-secondary ms-1">Máx.</span>}
+                </div>
+                <span className="eg-price">{formatPrice(item.price * item.quantity)}</span>
+              </div>
+            </div>
+          </ListGroup.Item>
+        ))}
+      </ListGroup>
+      <div className="border-top p-3">
+        <div className="d-flex justify-content-between align-items-baseline mb-3">
+          <span className="fw-semibold">Total</span>
+          <span className="eg-price fs-5">{formatPrice(total)}</span>
+        </div>
+        <Link to="/paymethod" className="btn btn-primary w-100">Ir a pagar</Link>
       </div>
-      <div className='bot'>
-        <Button variant='success' onClick={handlePay} className='w-100 mt-2 botonPagar'>Pagar</Button>
-      </div>
-    </div>
-  );
-};
+    </>
+  )
+}
 
-Carrito.propTypes = {
-  setCartProducts: PropTypes.func
-};
+// Ruta /carrito: la misma vista a pantalla completa (útil en móvil).
+export const CarritoPage = () => (
+  <Container className="py-4 py-md-5">
+    <h1 className="mb-4">Tu carrito</h1>
+    <Card className="eg-maxw-md">
+      <Carrito />
+    </Card>
+  </Container>
+)
 
-export default Carrito;
+export default Carrito

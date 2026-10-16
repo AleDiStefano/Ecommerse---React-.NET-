@@ -1,112 +1,67 @@
-import { Button, Form } from 'react-bootstrap';
-import './Login.css'
-import { useState, useContext, useRef } from "react";
-import { useForm } from '../../hook/useForm';
-import { useNavigate } from 'react-router-dom';
-import { AuthenticationContext } from '../../services/authentication/AuthenticationContext';
+import { useContext, useState } from 'react'
+import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useForm } from '../../hook/useForm'
+import { AuthenticationContext } from '../../services/authentication/AuthenticationContext'
+
+// `from` lo arma ProtectedRoute; solo se vuelve a una ruta interna ('/x'), nunca a '//host'.
+const internalPath = (from) => (typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/')
 
 const Login = () => {
-    const { email, password, onInputChange, onResetForm } = useForm({
-        email: '',
-        password: ''
-    })
+  const { login } = useContext(AuthenticationContext)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { email, password, onInputChange } = useForm({ email: '', password: '' })
+  const [validated, setValidated] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-    const [errors, setErrors] = useState({
-        email: false,
-        password: false,
-    });
-
-    const navigate = useNavigate();
-
-    const { handleLogin } = useContext(AuthenticationContext);
-
-    const emailRef = useRef(null);
-    const passwordRef = useRef(null);
-
-    const onLogin = (event) => {
-        event.preventDefault()
-
-        if (!emailRef.current.value) {
-            emailRef.current.focus();
-            alert("Debe ingresar su email")
-            setErrors({ ...errors, email: true });
-            return;
-        }
-
-        if (!passwordRef.current.value) {
-            passwordRef.current.focus();
-            alert("Debe ingresar su contraseña")
-            setErrors({ ...errors, password: true });
-            return;
-        }
-
-        setErrors({ ...errors, exist: false });
-        let userAuthenticateDTO = {
-            userEmail: email,
-            userPassword: password
-        }
-        //Busqueda en la base si el usuario existe
-        fetch("https://localhost:7197/api/User/validate", {
-            method: "POST",
-            mode: "cors",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(userAuthenticateDTO),
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    alert("Email o contraseña inválidos")
-                    throw new Error("Email o contraseña inválidos");
-                }
-                return response.json();
-            })
-            .then((authenticateResponse) => {
-                handleLogin(email)
-                onResetForm();
-                window.location.href = '/'
-            });
+  const onSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    if (!e.currentTarget.checkValidity()) {
+      e.currentTarget.querySelector(':invalid')?.focus()
+      return setValidated(true)
     }
-
-    const onRegister = () => {
-        navigate("/registrarse")
+    setSubmitting(true)
+    try {
+      await login(email, password)
+      navigate(internalPath(location.state?.from), { replace: true })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSubmitting(false)
     }
+  }
 
-    return (
-        <div className='divBox'>
-            <div className='divLogin'>
-                <Form className='form' onSubmit={onLogin}>
-                    <h1>Iniciar Sesión</h1>
-                    <Form.Group controlId="userEmail" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Email</Form.Label>
-                        <Form.Control
-                            type="email"
-                            placeholder='Ingrese su email...'
-                            name="email"
-                            value={email}
-                            ref={emailRef}
-                            onChange={onInputChange}
-                        />
-                    </Form.Group>
-                    <Form.Group controlId="userPassword" className='formGroup'>
-                        <Form.Label className='text-dark labelForm'>Contraseña</Form.Label>
-                        <Form.Control
-                            type="password"
-                            placeholder='Ingrese su contraseña...'
-                            name="password"
-                            value={password}
-                            ref={passwordRef}
-                            onChange={onInputChange}
-                        />
-                    </Form.Group>
-                    <div className='box-button-login'>
-                        <Button type='submit' variant='warning' className="mb-3 mt-2 ps-5 pe-5 botonForm">Ingresar</Button>
-                    </div>
-                </Form>
-                <p className='pLogin' onClick={onRegister}>Registrarse</p>
-            </div>
-        </div>
-    )
+  return (
+    <Container className="py-4 py-md-5">
+      <Card className="eg-maxw-sm mx-auto">
+        <Card.Body className="p-4">
+          <h1 className="h3 mb-4">Iniciar sesión</h1>
+          <Form noValidate validated={validated} onSubmit={onSubmit}>
+            {error && <Alert variant="danger">{error}</Alert>}
+            <Form.Group className="mb-3" controlId="login-email">
+              <Form.Label>Email</Form.Label>
+              <Form.Control type="email" name="email" value={email} onChange={onInputChange} required autoComplete="username" />
+              <Form.Control.Feedback type="invalid">Ingresá un email válido.</Form.Control.Feedback>
+            </Form.Group>
+            <Form.Group className="mb-4" controlId="login-password">
+              <Form.Label>Contraseña</Form.Label>
+              <Form.Control type="password" name="password" value={password} onChange={onInputChange} required autoComplete="current-password" />
+              <Form.Control.Feedback type="invalid">Ingresá tu contraseña.</Form.Control.Feedback>
+            </Form.Group>
+            <Button type="submit" className="w-100" disabled={submitting}>
+              {submitting && <Spinner size="sm" className="me-2" aria-hidden="true" />}Ingresar
+            </Button>
+          </Form>
+          <p className="text-center mt-4 mb-0">
+            ¿No tenés cuenta? <Link to="/registrarse">Registrate</Link>
+          </p>
+        </Card.Body>
+      </Card>
+    </Container>
+  )
 }
 
 export default Login

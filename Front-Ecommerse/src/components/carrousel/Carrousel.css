@@ -1,0 +1,8 @@
+/* Hero del landing: lo que ninguna utilidad de Bootstrap resuelve (alto fluido y degradé). */
+.eg-hero-img { height: clamp(14rem, 38vw, 26rem); }
+/* Degradé navy a la izquierda: el texto blanco queda >= 4.5:1 sobre cualquier foto. En móvil el texto ocupa todo el ancho: velo parejo. */
+.eg-hero-caption { background: linear-gradient(90deg, rgba(26, 34, 54, 0.88) 0%, rgba(26, 34, 54, 0.72) 40%, rgba(26, 34, 54, 0.2) 100%); }
+@media (max-width: 767.98px) { .eg-hero-caption { background: rgba(26, 34, 54, 0.74); } }
+/* Flechas angostas: dejan lugar al texto del caption (el 15% por defecto lo taparía y se comería los clics del botón). */
+.eg-hero .carousel-control-prev,
+.eg-hero .carousel-control-next { width: 3rem; }

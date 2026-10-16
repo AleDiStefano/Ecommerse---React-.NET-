@@ -1,5 +1,4 @@
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import './App.css';
+import { Outlet, RouterProvider, ScrollRestoration, createBrowserRouter } from 'react-router-dom';
 import LandingPage from './components/landingPage/LandingPage';
 import Register from './components/register/Register';
 import Login from './components/login/Login';
@@ -7,163 +6,160 @@ import NotFound from './components/notFound/NotFound';
 import MainLayout from './components/mainLayout/MainLayout';
 import Products from './components/products/Products';
 import ProductDetail from './components/productDetail/ProductDetail';
-import Carrito from './components/carrito/Carrito';
+import { CarritoPage } from './components/carrito/Carrito';
 import AddProducts from './components/addProducts/AddProducts';
 import PayMethod from './components/payMethod/PayMethod';
 import UpdateProducts from './components/updateProducts/UpdateProducts';
-import Customers from './components/customers/Customers';
-import UpdateCustomer from './components/updateCustomer/UpdateCustomer';
-import DisplayCustomer from './components/displayCustomer/DisplayCustomer';
-import DeleteCustomer from './components/deleteCustomer/DeleteCustomer';
-import CreateCustomer from './components/createCustomer/CreateCustomer';
-import Seller from './components/seller/Seller';
-import CreateSeller from './components/createSeller/CreateSeller';
-import DisplaySeller from './components/displaySeller/DisplaySeller';
-import UpdateSeller from './components/updateSeller/UpdateSeller';
-import DeleteSeller from './components/deleteSeller/DeleteSeller';
+import UserList from './components/users/UserList';
+import UserForm from './components/users/UserForm';
 import { Order } from './components/order/Order';
 import ProtectedRoute from './components/protectedRoute/ProtectedRoute';
-import ProtectedForClients from './components/protectedForClients/ProtectedForClients';
-import ProtectedForSellers from './components/protectedForSellers/ProtectedForSellers';
+import { ADMIN, STAFF } from './services/authentication/roles';
 
-const App = () => {
-  const router = createBrowserRouter([
-    {
-      path: "/",
-      element: (
+// Un solo layout para todas las rutas: el navbar no se remonta al navegar y 403/404 salen con navbar y footer.
+// Sin `roles` = cualquier usuario logueado; STAFF = vendedor y admin; ADMIN = solo admin.
+const router = createBrowserRouter([
+  {
+    element: (
+      <>
         <MainLayout>
-          <LandingPage />
+          <Outlet />
         </MainLayout>
-      ),
-    },
-    {
-      path: "/login",
-      element:
-        <MainLayout>
-          <Login />
-        </MainLayout>
-    },
-    {
-      path: "/registrarse",
-      element:
-        <MainLayout>
-          <Register />
-        </MainLayout>
-    },
-    {
-      path: "/productos",
-      element:
-        <MainLayout children={<Products />}>
-        </MainLayout>
-    },
-    {
-      path: "/carrito",
-      element:
-        <ProtectedRoute children={<Carrito />}>
-        </ProtectedRoute>
-    },
-    {
-      path: "/producto/:id",
-      element:
-        <MainLayout children={<ProductDetail />}>
-        </MainLayout>
-    },
-    {
-      path: "/nuevoProducto",
-      element:
-        <ProtectedForClients children={<AddProducts />}>
-        </ProtectedForClients>
-    },
-    {
-      path: "/paymethod",
-      element:
-        <ProtectedRoute children={<PayMethod />}>
-        </ProtectedRoute>
-    },
-    {
-      path: "/order",
-      element:
-        <ProtectedRoute children={<Order />}>
-        </ProtectedRoute>
-    },
-    {
-      path: "/seller",
-      element:
-        <ProtectedForSellers children={<Seller />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/createseller",
-      element:
-        <ProtectedForSellers children={<CreateSeller />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/displayseller/:id",
-      element:
-        <ProtectedForSellers children={<DisplaySeller />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/updateseller/:id",
-      element:
-        <ProtectedForSellers children={<UpdateSeller />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/deleteseller/:id",
-      element:
-        <ProtectedForSellers children={<DeleteSeller />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/customer",
-      element:
-        <ProtectedForSellers children={<Customers />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/createcustomer",
-      element:
-        <ProtectedForSellers children={<CreateCustomer />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/displaycustomer/:id",
-      element:
-        <ProtectedForSellers children={<DisplayCustomer />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/updatecustomer/:id",
-      element:
-        <ProtectedForSellers children={<UpdateCustomer />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/deletecustomer/:id",
-      element:
-        <ProtectedForSellers children={<DeleteCustomer />}>
-        </ProtectedForSellers>
-    },
-    {
-      path: "/updateproduct/:id",
-      element:
-        <ProtectedForClients children={<UpdateProducts />}>
-        </ProtectedForClients>
-    },
-    {
-      path: "*",
-      element:
-        <MainLayout children={<NotFound />}>
-        </MainLayout>
-    },
-  ]);
-  return (
-    <div className="d-flex flex-column align-items-center">
-      <RouterProvider router={router} />
-    </div>
-  );
-};
+        <ScrollRestoration />
+      </>
+    ),
+    children: [
+      { path: '/', element: <LandingPage /> },
+      { path: '/login', element: <Login /> },
+      { path: '/registrarse', element: <Register /> },
+      { path: '/productos', element: <Products /> },
+      { path: '/producto/:id', element: <ProductDetail /> },
+      {
+        path: '/carrito',
+        element: (
+          <ProtectedRoute>
+            <CarritoPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/nuevoProducto',
+        element: (
+          <ProtectedRoute roles={STAFF}>
+            <AddProducts />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/updateproduct/:id',
+        element: (
+          <ProtectedRoute roles={STAFF}>
+            <UpdateProducts />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/paymethod',
+        element: (
+          <ProtectedRoute>
+            <PayMethod />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/order',
+        element: (
+          <ProtectedRoute>
+            <Order />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/seller',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserList role="seller" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/createseller',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="seller" mode="create" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/displayseller/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="seller" mode="view" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/updateseller/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="seller" mode="edit" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/deleteseller/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="seller" mode="delete" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/customer',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserList role="customer" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/createcustomer',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="customer" mode="create" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/displaycustomer/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="customer" mode="view" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/updatecustomer/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="customer" mode="edit" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/deletecustomer/:id',
+        element: (
+          <ProtectedRoute roles={ADMIN}>
+            <UserForm role="customer" mode="delete" />
+          </ProtectedRoute>
+        ),
+      },
+      { path: '*', element: <NotFound /> },
+    ],
+  },
+]);
+
+// react-router 6.30 avisa por consola de cada flag v7 sin definir; startTransition es el único que aplica a este router.
+const App = () => <RouterProvider router={router} future={{ v7_startTransition: true }} />;
 
 export default App;

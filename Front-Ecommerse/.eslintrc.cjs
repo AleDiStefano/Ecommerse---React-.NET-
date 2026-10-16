@@ -12,6 +12,8 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
+    // Sin PropTypes: prop-types no está en package.json (llega por react-bootstrap) y los tipos que había eran incorrectos.
+    'react/prop-types': 'off',
     'react/jsx-no-target-blank': 'off',
     'react-refresh/only-export-components': [
       'warn',
